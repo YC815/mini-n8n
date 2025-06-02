@@ -1,16 +1,19 @@
 import { create } from "zustand";
 import { WorkflowNode, WorkflowEdge, NodeID } from "@/types/workflow";
 
+// 定義 Excel 資料的型別
+type ExcelData = (string | number | boolean)[][] | Record<string, string | number | boolean>[];
+
 // 定義 store 中的狀態與動作
 interface WorkflowState {
   nodes: WorkflowNode[];
   edges: WorkflowEdge[];
-  excelData: any[];                  // 原始上傳的 Excel 資料（可為二維陣列或物件陣列）
+  excelData: ExcelData;                  // 原始上傳的 Excel 資料（可為二維陣列或物件陣列）
   currentEditingNodeId: NodeID | null;
   modalVisible: boolean;
   setNodes: (nodes: WorkflowNode[]) => void;
   setEdges: (edges: WorkflowEdge[]) => void;
-  setExcelData: (data: any[]) => void;
+  setExcelData: (data: ExcelData) => void;
   addNode: (node: WorkflowNode) => void;
   updateNode: (id: NodeID, data: Partial<WorkflowNode["data"]>) => void;
   removeNode: (id: NodeID) => void;

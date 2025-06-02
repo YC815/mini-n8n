@@ -68,7 +68,17 @@ export default function NodeModal() {
   }
   // もし fileUpload ノードで、かつ outputData がなければ、excelData を表示
   if (node.type === 'fileUpload' && (!node.data.outputData || node.data.outputData.length === 0) && excelData.length > 0) {
-    upstreamData = [excelData]; // excelData はネストされた配列かもしれないので、配列でラップする
+    // 將 excelData 轉換為 NodeOutput 格式
+    const typedExcelData = excelData as (string | number | boolean)[][];
+    const headers = typedExcelData[0] as string[];
+    const convertedData = typedExcelData.slice(1).map(row => {
+      const obj: Record<string, string | number | boolean> = {};
+      headers.forEach((header, index) => {
+        obj[header] = row[index];
+      });
+      return obj;
+    });
+    upstreamData = [convertedData];
   }
   // upstreamData がそれでも空の場合は、空の配列の配列を JsonView などに渡す
   if (upstreamData.length === 0 && node.type !== 'fileUpload') { // Trigger以外のノードで入力がない場合
