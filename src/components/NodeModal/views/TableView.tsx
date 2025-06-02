@@ -1,4 +1,6 @@
-export default function TableView({ data }: { data: any[] }) {
+import { NodeOutput } from "@/types/workflow";
+
+export default function TableView({ data }: { data: NodeOutput[] }) {
   if (!data.length) return <p>無資料</p>;
   if (Array.isArray(data[0])) {
     // 二維陣列
@@ -8,7 +10,7 @@ export default function TableView({ data }: { data: any[] }) {
           <tbody>
             {data.map((row, ri) => (
               <tr key={ri}>
-                {row.map((cell, ci) => (
+                {Object.values(row).map((cell, ci) => (
                   <td key={ci} className="border p-1 text-xs">
                     {String(cell)}
                   </td>
@@ -39,7 +41,7 @@ export default function TableView({ data }: { data: any[] }) {
             <tr key={ri}>
               {columns.map((col) => (
                 <td key={col} className="border p-1 text-xs">
-                  {String((row as any)[col])}
+                  {String(row[col as keyof typeof row])}
                 </td>
               ))}
             </tr>

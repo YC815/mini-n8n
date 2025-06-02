@@ -8,14 +8,16 @@ import ReactFlow, {
   useNodesState,
   useEdgesState,
   Node,
-  Edge,
   Connection,
   ReactFlowProvider,
   applyNodeChanges,
   applyEdgeChanges,
+  NodeChange,
+  EdgeChange,
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { useWorkflowStore } from "@/store/workflowStore";
+import { WorkflowEdge } from "@/types/workflow";
 // import CustomNodeTypes from "./custom-nodes"; // 匯入自訂節點類型
 
 // 暫時定義 CustomNodeTypes，待後續建立自訂節點後再修改
@@ -26,8 +28,8 @@ export default function FlowCanvas() {
 
   // React Flow 提供的 hook，可簡化節點／連線管理
   // 注意：這裡的初始值直接使用 store 的狀態，但 React Flow 內部仍會維護自己的狀態
-  const [rfNodes, setRfNodes, onNodesChangeReactFlow] = useNodesState(storeNodes);
-  const [rfEdges, setRfEdges, onEdgesChangeReactFlow] = useEdgesState(storeEdges);
+  const [rfNodes, setRfNodes] = useNodesState(storeNodes);
+  const [rfEdges, setRfEdges] = useEdgesState(storeEdges);
 
   // 當 store中的 nodes 更新時，同步到 React Flow 的內部狀態
   useEffect(() => {
@@ -40,15 +42,23 @@ export default function FlowCanvas() {
   }, [storeEdges, setRfEdges]);
 
   const onNodesChange = useCallback(
-    (changes: any) => {
-      setNodes(applyNodeChanges(changes, storeNodes));
+    (changes: NodeChange[]) => {
+      const updatedNodes = applyNodeChanges(changes, storeNodes);
+      setNodes(updatedNodes.map(node => ({
+        ...node,
+        type: node.type || 'default' // 確保 type 屬性存在
+      })));
     },
     [setNodes, storeNodes]
   );
 
   const onEdgesChange = useCallback(
-    (changes: any) => {
-      setEdges(applyEdgeChanges(changes, storeEdges));
+    (changes: EdgeChange[]) => {
+      const updatedEdges = applyEdgeChanges(changes, storeEdges);
+      setEdges(updatedEdges.map(edge => ({
+        ...edge,
+        label: typeof edge.label === 'string' ? edge.label : undefined
+      })));
     },
     [setEdges, storeEdges]
   );
@@ -56,11 +66,12 @@ export default function FlowCanvas() {
   // 處理新增連線
   const onConnect = useCallback(
     (params: Connection) => {
-      const newEdge: Edge = {
+      const newEdge: WorkflowEdge = {
         id: `e-${params.source}-${params.target}`,
         source: params.source!,
         target: params.target!,
         animated: true,
+        label: undefined
       };
       storeAddEdge(newEdge);
     },

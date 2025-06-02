@@ -1,5 +1,7 @@
+import { NodeOutput } from "@/types/workflow";
+
 // 簡單示例：只顯示欄位名稱與型別
-export default function SchemaView({ data }: { data: any[] }) {
+export default function SchemaView({ data }: { data: NodeOutput[] }) {
   if (!data.length) {
     return <p>無資料</p>;
   }
@@ -11,7 +13,7 @@ export default function SchemaView({ data }: { data: any[] }) {
       {keys.map((key, idx) => {
         const type = Array.isArray(sample)
           ? typeof sample[idx]
-          : typeof (sample as any)[key];
+          : typeof (sample as Record<string, string | number | boolean>)[key];
         return (
           <li key={key}>
             {key}: <span className="font-mono">{type}</span>

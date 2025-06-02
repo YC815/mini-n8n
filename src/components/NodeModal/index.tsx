@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useWorkflowStore } from "@/store/workflowStore";
+import { NodeOutput } from "@/types/workflow";
 import JsonView from "./views/JsonView";
 import SchemaView from "./views/SchemaView";
 import TableView from "./views/TableView";
@@ -58,7 +59,7 @@ export default function NodeModal() {
     .map((e) => e.source);
   
   // upstreamData の初期値を空配列に設定
-  let upstreamData: any[] = [];
+  let upstreamData: NodeOutput[] = [];
   if (upstreamNodeIds.length > 0) {
     upstreamData = nodes
       .filter((n) => upstreamNodeIds.includes(n.id))
