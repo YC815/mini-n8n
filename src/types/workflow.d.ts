@@ -23,6 +23,7 @@ export interface VlookupParams {
 
 export interface MergeParams {
   key?: string;
+  joinType?: 'left' | 'inner' | 'right' | 'outer';
   // otherTable?: (string | number | boolean)[][]; // otherTable 的數據源由 executeWorkflow 決定
 }
 

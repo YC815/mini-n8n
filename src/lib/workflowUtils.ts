@@ -64,14 +64,18 @@ export function executeWorkflow(workflow: Workflow, excelData: (string | number 
             if (validInputs.length >= 2) {
                 const tableA_Array = convertToArray(validInputs[0]);
                 const tableB_Array = convertToArray(validInputs[1]); // Merge 節點固定取前兩個有效輸入
-                const joinKey = node.data.params?.merge?.key; 
                 
+                // 修正讀取 joinKey 和 joinType 的路徑
+                const mergeParams = node.data.params as MergeParams; // 直接使用 MergeParams 型別
+                const joinKey = mergeParams?.key;
+                const joinType = mergeParams?.joinType || 'left'; // 預設為 'left'
+
                 if (!joinKey) {
                     console.warn(`Merge node ${node.id} (${node.data.customName}) is missing a join key. Outputting empty.`);
                     node.data.outputData = [];
                 } else {
                     node.data.outputData = convertToNodeOutput(
-                        mergeTables([tableA_Array, tableB_Array], joinKey)
+                        mergeTables([tableA_Array, tableB_Array], joinKey, joinType) // 傳遞 joinType
                     );
                 }
             } else {
@@ -214,7 +218,8 @@ function vlookupRows(data: (string | number | boolean)[][], params: NodeParams):
 
 function mergeTables(
   tables: (string | number | boolean)[][][],
-  joinColKey: string
+  joinColKey: string,
+  joinType: 'left' | 'inner' | 'right' | 'outer' = 'left' // 新增 joinType 參數，預設為 'left'
 ): (string | number | boolean)[][] {
   if (tables.length < 2) return tables[0] || [];
   const [tableA, tableB] = tables;
@@ -227,7 +232,15 @@ function mergeTables(
   const idxA = headerA.indexOf(joinColKey);
   const idxB = headerB.indexOf(joinColKey);
 
-  if (idxA < 0 || idxB < 0) return tableA;
+  if (idxA < 0 || idxB < 0) {
+    console.warn(`Join key "${joinColKey}" not found in one or both tables. Returning first table (or empty if joinType demands).`);
+    // 根據 joinType 決定行為，目前 'left' join 在此情況下會返回 tableA
+    // 若是 'inner' join，則應返回空表頭或空資料
+    if (joinType === 'inner') {
+        return tableA.length > 0 ? [tableA[0]] : []; // 只返回表頭
+    }
+    return tableA; // Left join returns tableA
+  }
 
   const mergedHeader = [...headerA, ...headerB.filter((col, i) => i !== idxB)];
   const mapB = new Map<string | number | boolean, (string | number | boolean)[]>();
@@ -239,9 +252,19 @@ function mergeTables(
   const mergedRows = tableA.slice(1).map((row) => {
     const key = row[idxA];
     const rowBData = mapB.get(key);
-    const bValues = headerB.map((_, i) => (rowBData && i !== idxB ? rowBData[i] : ''));
-    return [...row, ...bValues.filter((_,i) => headerB[i] !== joinColKey )];
-  });
+    
+    if (rowBData) { // 如果在 tableB 中找到對應的 key
+      const bValues = headerB.map((_, i) => (i !== idxB ? rowBData[i] : undefined /* undefined 標記不加入 */));
+      return [...row, ...bValues.filter(val => val !== undefined && headerB[headerB.indexOf(joinColKey)] !== headerB[bValues.indexOf(val)] )];
+    } else { // 如果在 tableB 中沒有找到對應的 key
+      if (joinType === 'left' || joinType === 'outer') { // Left Join 或 Outer Join 時，tableA 的列保留，tableB 的部分填空
+        const emptyBValues = headerB.map((colName, i) => (i !== idxB ? '' : undefined)).filter(val => val !== undefined);
+        return [...row, ...emptyBValues];
+      }
+      return null; // Inner Join 或 Right Join (如果 tableA 是 'driving' table) 時，不包含此列
+    }
+  }).filter(row => row !== null) as (string | number | boolean)[][]; // 過濾掉 null (針對 Inner Join)
+  
   return [mergedHeader, ...mergedRows];
 }
 

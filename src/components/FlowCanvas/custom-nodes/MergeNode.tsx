@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState } from "react";
 import { Handle, Position, NodeProps } from "reactflow";
 import { Input } from "@/components/ui/input";
 import {
@@ -11,7 +11,7 @@ import {
   SelectContent,
 } from "@/components/ui/select";
 import { useWorkflowStore } from "@/store/workflowStore";
-import { NodeOutput, MergeParams, WorkflowNode } from "@/types/workflow";
+import { NodeOutput, MergeParams } from "@/types/workflow";
 
 interface MergeNodeData {
   customName: string;
@@ -23,9 +23,6 @@ export default function MergeNode({ id, data, selected }: NodeProps<MergeNodeDat
   const { nodes, edges, updateNode } = useWorkflowStore();
 
   const [joinKey, setJoinKey] = useState<string | undefined>(data.params.key);
-  
-  const [upstreamHeadersA, setUpstreamHeadersA] = useState<string[]>([]);
-  const [upstreamHeadersB, setUpstreamHeadersB] = useState<string[]>([]);
   const [commonHeaders, setCommonHeaders] = useState<string[]>([]);
   const [upstreamError, setUpstreamError] = useState<string | null>(null);
 
@@ -33,52 +30,58 @@ export default function MergeNode({ id, data, selected }: NodeProps<MergeNodeDat
     const incomingEdges = edges.filter((e) => e.target === id);
     const sourceNodeIds = incomingEdges.map(e => e.source);
 
-    if (sourceNodeIds.length < 2) {
-      setUpstreamError("需要至少兩個上游節點進行合併。");
-      setUpstreamHeadersA([]);
-      setUpstreamHeadersB([]);
-      setCommonHeaders([]);
-      return;
-    }
-
-    const nodeA = nodes.find(n => n.id === sourceNodeIds[0]);
-    const nodeB = nodes.find(n => n.id === sourceNodeIds[1]);
-
-    let error = null;
     let headersA: string[] = [];
     let headersB: string[] = [];
+    let errorMsg: string | null = null;
 
-    if (nodeA && nodeA.data.outputData && nodeA.data.outputData.length > 0) {
-      headersA = Object.keys(nodeA.data.outputData[0]);
+    if (sourceNodeIds.length < 2) {
+      errorMsg = "需要至少兩個上游節點進行合併。";
     } else {
-      error = (error || "") + "第一個上游節點無有效資料或欄位。 ";
-    }
+      const nodeA = nodes.find(n => n.id === sourceNodeIds[0]);
+      const nodeB = nodes.find(n => n.id === sourceNodeIds[1]);
 
-    if (nodeB && nodeB.data.outputData && nodeB.data.outputData.length > 0) {
-      headersB = Object.keys(nodeB.data.outputData[0]);
-    } else {
-      error = (error || "") + "第二個上游節點無有效資料或欄位。 ";
+      if (nodeA && nodeA.data.outputData && nodeA.data.outputData.length > 0 && Object.keys(nodeA.data.outputData[0]).length > 0) {
+        headersA = Object.keys(nodeA.data.outputData[0]);
+      } else {
+        errorMsg = (errorMsg || "") + "第一個上游節點無有效資料或欄位。 ";
+      }
+
+      if (nodeB && nodeB.data.outputData && nodeB.data.outputData.length > 0 && Object.keys(nodeB.data.outputData[0]).length > 0) {
+        headersB = Object.keys(nodeB.data.outputData[0]);
+      } else {
+        errorMsg = (errorMsg || "") + "第二個上游節點無有效資料或欄位。 ";
+      }
     }
     
-    setUpstreamHeadersA(headersA);
-    setUpstreamHeadersB(headersB);
-    setUpstreamError(error);
+    setUpstreamError(errorMsg);
 
     if (headersA.length > 0 && headersB.length > 0) {
-      setCommonHeaders(headersA.filter(h => headersB.includes(h)));
+      const currentCommonHeaders = headersA.filter(h => headersB.includes(h));
+      setCommonHeaders(currentCommonHeaders);
+      
+      if (currentCommonHeaders.length === 1) {
+        if (joinKey !== currentCommonHeaders[0]) {
+            setJoinKey(currentCommonHeaders[0]);
+        }
+      } else if (currentCommonHeaders.length > 1 && joinKey && !currentCommonHeaders.includes(joinKey)) {
+        setJoinKey(undefined);
+      } else if (currentCommonHeaders.length === 0) {
+        setJoinKey(undefined);
+      }
+      
     } else {
       setCommonHeaders([]);
+      setJoinKey(undefined);
     }
 
-  }, [id, nodes, edges]);
+  }, [id, nodes, edges, joinKey]);
 
   useEffect(() => {
-    // MergeNode 的 params 也可能需要包含 tableB 的來源 nodeId，如果不是固定取前兩個 incoming edge
-    // 目前的 workflowUtils.ts 的 mergeTables 第二個參數是 otherTable 的 data
-    // 但在卡片上，使用者應該是選 Join Key
-    // otherTable 的數據應該由 executeWorkflow 階段根據連線動態傳入 mergeTables
-    updateNode(id, { params: { key: joinKey } }); 
-  }, [id, joinKey, updateNode]);
+    const currentParams = data.params || {};
+    if (currentParams.key !== joinKey || currentParams.joinType !== 'left') {
+        updateNode(id, { params: { ...currentParams, key: joinKey, joinType: 'left' } });
+    }
+  }, [id, joinKey, updateNode, data.params]);
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     updateNode(id, { customName: e.target.value });
@@ -87,9 +90,6 @@ export default function MergeNode({ id, data, selected }: NodeProps<MergeNodeDat
   return (
     <div className={`bg-white border-2 ${selected ? 'border-blue-500' : 'border-gray-300'} rounded-lg w-64 p-3 shadow-md`}>
       <Handle type="target" position={Position.Top} id="a" isConnectableStart={false} className="!bg-teal-500" />
-      {/* Merge 節點可以有多個輸入，但 React Flow 的 Handle 預設只畫一個。
-          若要視覺上表示多個輸入點，需要自訂 Handle 或使用多個 target Handle (e.g., id="a", id="b") 
-          這裡我們假設 `workflowUtils` 會處理多個輸入源的邏輯。*/}
       
       <div className="flex items-center mb-2">
         <div className="mr-2 text-orange-500">
@@ -103,11 +103,11 @@ export default function MergeNode({ id, data, selected }: NodeProps<MergeNodeDat
         />
       </div>
 
-      {upstreamError && !commonHeaders.length ? (
+      {upstreamError && !commonHeaders.length && (!nodes.find(n => n.id === edges.find(e => e.target === id)?.source)?.data.outputData || nodes.find(n => n.id === edges.find(e => e.target === id)?.source)?.data.outputData?.length === 0) ? (
         <p className="text-xs text-red-500 p-2 bg-red-50 rounded">{upstreamError}</p>
       ) : commonHeaders.length > 0 ? (
         <div className="space-y-2 text-sm">
-          <Select value={joinKey} onValueChange={setJoinKey}>
+          <Select value={joinKey || ""} onValueChange={(value) => setJoinKey(value === "" ? undefined : value)}>
             <SelectTrigger className="w-full h-9">
               <SelectValue placeholder="選擇合併依據欄位 (Join Key)" />
             </SelectTrigger>
@@ -120,7 +120,10 @@ export default function MergeNode({ id, data, selected }: NodeProps<MergeNodeDat
             </SelectContent>
           </Select>
           {upstreamError && <p className="text-xs text-orange-500 pt-1">注意: {upstreamError}</p>}
+          <p className="text-xs text-gray-500">合併方式: Left Join</p> 
         </div>
+      ) : upstreamError ? (
+        <p className="text-xs text-red-500 p-2 bg-red-50 rounded">{upstreamError}</p>
       ) : (
         <p className="text-xs text-gray-400 p-2 bg-gray-50 rounded">等待上游資料或無共同欄位可合併...</p>
       )}
