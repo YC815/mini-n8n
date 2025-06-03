@@ -57,13 +57,18 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   replaceWorkflow: (nodes, edges) => set({ nodes, edges }),
   executeWorkflow: () => {
     const state = get();
-    if (state.isExecuting) return; // 如果正在執行，則不重複執行
+    if (state.isExecuting) return;
     
     set({ isExecuting: true });
     try {
+      // 將 excelData 轉換為二維陣列格式
+      const excelDataArray = Array.isArray(state.excelData) && state.excelData.length > 0 && Array.isArray(state.excelData[0])
+        ? state.excelData
+        : (state.excelData as Record<string, string | number | boolean>[]).map(row => Object.values(row));
+
       const updatedNodes = executeWorkflow(
         { nodes: state.nodes, edges: state.edges },
-        state.excelData
+        excelDataArray as (string | number | boolean)[][]
       );
       set({ nodes: updatedNodes });
     } catch (error) {

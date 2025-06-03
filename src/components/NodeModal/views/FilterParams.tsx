@@ -5,7 +5,7 @@ import { Select, SelectTrigger, SelectValue, SelectItem, SelectContent } from "@
 import { Input } from "@/components/ui/input";
 import { useWorkflowStore } from "@/store/workflowStore";
 import { WorkflowNode } from "@/types/workflow";
-import { filterRows } from "@/lib/workflowUtils"; // 確保此函數已在 workflowUtils.ts 中定義
+import { filterRows, convertToArray, convertToNodeOutput } from "@/lib/workflowUtils";
 
 interface FilterParams {
   selectedField?: string;
@@ -13,6 +13,8 @@ interface FilterParams {
   filterValue?: string;
   addField?: string | null;
 }
+
+type OutputDataRow = Record<string, string | number | boolean>;
 
 interface FilterParamsProps {
   node: WorkflowNode;
@@ -51,7 +53,6 @@ export default function FilterParams({ node, headers }: FilterParamsProps) {
       selectedField,
       operator,
       filterValue,
-      // 保留 params 中可能存在的其他欄位，例如 addField (雖然理論上此時應為 null)
       ...params,
     };
     // 移除 addField，因为它已经被处理
@@ -69,31 +70,37 @@ export default function FilterParams({ node, headers }: FilterParamsProps) {
       return;
     }
     const upstreamNode = nodes.find((n) => n.id === upstreamEdge.source);
-    const upstreamData = upstreamNode?.data.outputData as any[][] | undefined;
+    const upstreamData = upstreamNode?.data.outputData as OutputDataRow[] | undefined;
 
     if (upstreamData && selectedField && operator && filterValue !== "") {
       try {
-        const newOutput = filterRows(upstreamData, {
-          columnKey: selectedField,
-          operator,
-          value: filterValue,
+        // 將 OutputDataRow[] 轉換為 (string | number | boolean)[][]
+        const tableData = convertToArray(upstreamData);
+        const newOutput = filterRows(tableData, {
+          filter: {
+            field: selectedField,
+            operator: operator as "equals" | "greater" | "less" | "contains",
+            value: filterValue
+          }
         });
-        updateNode(node.id, { ...node.data, outputData: newOutput, params: currentParams });
+        // 將結果轉換回 OutputDataRow[]
+        const convertedOutput = convertToNodeOutput(newOutput);
+        updateNode(node.id, { ...node.data, outputData: convertedOutput, params: currentParams });
       } catch (error) {
         console.error("Error during filtering:", error);
-        updateNode(node.id, { ...node.data, outputData: undefined, params: currentParams }); // 發生錯誤時清除預覽
+        updateNode(node.id, { ...node.data, outputData: undefined, params: currentParams });
       }
     } else {
-      // 如果參數尚未齊全，清除預覽
       updateNode(node.id, { ...node.data, outputData: undefined, params: currentParams });
     }
   }, [selectedField, operator, filterValue, node.id, updateNode, nodes, edges, node.data, params]);
   
   // 當 node.data.params 從外部變化時 (例如，載入工作流)，同步本地 state
   useEffect(() => {
-    setSelectedField(node.data.params?.selectedField || "");
-    setOperator(node.data.params?.operator || "=");
-    setFilterValue(node.data.params?.filterValue || "");
+    const nodeParams = node.data.params as FilterParams;
+    setSelectedField(nodeParams?.selectedField || "");
+    setOperator(nodeParams?.operator || "=");
+    setFilterValue(nodeParams?.filterValue || "");
   }, [node.data.params]);
 
 

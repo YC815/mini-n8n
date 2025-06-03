@@ -18,13 +18,21 @@ export interface FilterParams {
 export interface VlookupParams {
   lookupField?: string;
   targetField?: string;
-  returnField?: string; // 報告中的 searchKey 對應到這裡可能是 returnField 或一個具體的值
+  returnField?: string;
+  searchColKey?: string;
+  lookupColKey?: string;
+  searchKey?: string;
+  outputColName?: string;
+  [key: string]: string | undefined; // 添加索引簽章以符合 NodeParams 要求
 }
 
 export interface MergeParams {
-  key?: string;
-  joinType?: 'left' | 'inner' | 'right' | 'outer';
-  // otherTable?: (string | number | boolean)[][]; // otherTable 的數據源由 executeWorkflow 決定
+  tableAId?: string;
+  tableBId?: string;
+  joinColKey?: string;
+  joinType?: 'inner' | 'left' | 'right' | 'outer';
+  addField?: string | null;
+  [key: string]: string | string[] | null | undefined; // 添加索引簽章以符合 NodeParams 要求
 }
 
 export interface ExportParams {

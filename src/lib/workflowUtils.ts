@@ -1,6 +1,6 @@
-import { WorkflowNode, Workflow, NodeOutput, NodeParams } from "@/types/workflow";
+import { WorkflowNode, Workflow, NodeOutput, NodeParams, MergeParams } from "@/types/workflow";
 
-function convertToNodeOutput(data: (string | number | boolean)[][]): NodeOutput {
+export function convertToNodeOutput(data: (string | number | boolean)[][]): NodeOutput {
   if (!data || data.length < 1) return [];
   const headers = data[0];
   if (!headers || headers.length === 0) return [];
@@ -66,8 +66,8 @@ export function executeWorkflow(workflow: Workflow, excelData: (string | number 
                 const tableB_Array = convertToArray(validInputs[1]); // Merge 節點固定取前兩個有效輸入
                 
                 // 修正讀取 joinKey 和 joinType 的路徑
-                const mergeParams = node.data.params as MergeParams; // 直接使用 MergeParams 型別
-                const joinKey = mergeParams?.key;
+                const mergeParams = node.data.params as MergeParams;
+                const joinKey = mergeParams?.joinColKey;
                 const joinType = mergeParams?.joinType || 'left'; // 預設為 'left'
 
                 if (!joinKey) {
@@ -219,7 +219,7 @@ export function vlookupRows(data: (string | number | boolean)[][], params: NodeP
 export function mergeTables(
   tables: (string | number | boolean)[][][],
   joinColKey: string,
-  joinType: 'left' | 'inner' | 'right' | 'outer' = 'left'
+  joinType: 'inner' | 'left' | 'right' | 'outer' = 'left'
 ): (string | number | boolean)[][] {
   if (tables.length < 2) return tables[0] || [];
   const [tableA, tableB] = tables;

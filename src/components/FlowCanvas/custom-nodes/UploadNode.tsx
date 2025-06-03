@@ -41,7 +41,7 @@ export default function UploadNode({ id, data, selected }: NodeProps<WorkflowNod
       }
 
       let output: NodeOutput = [];
-      if (parsedDataArray.length > 0 && parsedDataArray[0].length > 0) { // ヘッダー行が存在することを確認
+      if (parsedDataArray.length > 0 && Array.isArray(parsedDataArray[0]) && parsedDataArray[0].length > 0) {
         const headers = parsedDataArray[0].map(String);
         output = parsedDataArray.slice(1).map(row => {
           const obj: Record<string, string | number | boolean> = {};

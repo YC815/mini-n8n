@@ -3,7 +3,6 @@
 import React, { useCallback, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { useWorkflowStore } from "@/store/workflowStore";
-import { WorkflowNode } from "@/types/workflow";
 import FilterParams from "./views/FilterParams";
 import VlookupParams from "./views/VlookupParams";
 import MergeParams from "./views/MergeParams";

@@ -3,39 +3,41 @@
 import React, { useEffect, useState } from "react";
 import { useWorkflowStore } from "@/store/workflowStore";
 import { WorkflowNode } from "@/types/workflow";
-import { mergeTables } from "@/lib/workflowUtils"; // 確保此函數已在 workflowUtils.ts 中定義
+import type { MergeParams } from "@/types/workflow";
+import { mergeTables, convertToNodeOutput } from "@/lib/workflowUtils";
 import { Select, SelectTrigger, SelectValue, SelectItem, SelectContent } from "@/components/ui/select";
 
 interface MergeParamsProps {
   node: WorkflowNode;
-  upstreamNodes: WorkflowNode[]; // 從 NodeModal 傳下來，可能有多個
+  upstreamNodes: WorkflowNode[];
 }
+
+type TableData = (string | number | boolean)[][];
 
 export default function MergeParams({ node, upstreamNodes }: MergeParamsProps) {
   const { updateNode } = useWorkflowStore();
-  const { params } = node.data;
+  const { params } = node.data as { params: MergeParams };
 
   // 初始化 state，考慮到 Merge 節點可能有多個上游，但 UI 上先只處理前兩個
-  const initialTableAId = params?.tableAId || (upstreamNodes[0]?.id || "");
-  const initialTableBId = params?.tableBId || (upstreamNodes[1]?.id || "");
+  const initialTableAId = params?.tableAId || upstreamNodes[0]?.id || "";
+  const initialTableBId = params?.tableBId || upstreamNodes[1]?.id || "";
   const initialJoinColKey = params?.joinColKey || "";
-  const initialJoinType = params?.joinType || "inner"; // 'inner' | 'left' | 'right' | 'full'
+  const initialJoinType = params?.joinType || "inner";
 
   const [tableAId, setTableAId] = useState<string>(initialTableAId);
   const [tableBId, setTableBId] = useState<string>(initialTableBId);
   const [joinColKey, setJoinColKey] = useState<string>(initialJoinColKey);
-  const [joinType, setJoinType] = useState<string>(initialJoinType);
+  const [joinType, setJoinType] = useState<'inner' | 'left' | 'right' | 'outer'>(initialJoinType as 'inner' | 'left' | 'right' | 'outer');
 
   const tableA = upstreamNodes.find(un => un.id === tableAId);
   const tableB = upstreamNodes.find(un => un.id === tableBId);
 
-  const dataA = tableA?.data.outputData as any[][] | undefined;
-  const dataB = tableB?.data.outputData as any[][] | undefined;
+  const dataA = tableA?.data.outputData as TableData | undefined;
+  const dataB = tableB?.data.outputData as TableData | undefined;
 
-  // 監聽來自 NodeModal 的 addField (如果需要透過點擊左側欄位來設定 Join Key)
+  // 監聽來自 NodeModal 的 addField
   useEffect(() => {
     if (params?.addField) {
-      // 假設 addField 優先設置 joinColKey
       setJoinColKey(params.addField);
       updateNode(node.id, {
         ...node.data,
@@ -46,14 +48,12 @@ export default function MergeParams({ node, upstreamNodes }: MergeParamsProps) {
 
   // 當合併相關參數改變，更新 store 並執行合併
   useEffect(() => {
-    const currentParams = {
-      ...params,
+    const currentParams: MergeParams = {
       tableAId,
       tableBId,
       joinColKey,
       joinType,
     };
-    delete currentParams.addField;
 
     updateNode(node.id, {
       ...node.data,
@@ -62,13 +62,9 @@ export default function MergeParams({ node, upstreamNodes }: MergeParamsProps) {
 
     if (dataA && dataB && joinColKey && joinType) {
       try {
-        const newOutput = mergeTables(
-          dataA, // mergeTables 預期第一個參數為 tableA 的 data
-          dataB, // mergeTables 預期第二個參數為 tableB 的 data
-          joinColKey, 
-          joinType
-        );
-        updateNode(node.id, { ...node.data, outputData: newOutput, params: currentParams });
+        const newOutput = mergeTables([dataA, dataB], joinColKey, joinType);
+        const convertedOutput = convertToNodeOutput(newOutput);
+        updateNode(node.id, { ...node.data, outputData: convertedOutput, params: currentParams });
       } catch (error) {
         console.error("Error during merge:", error);
         updateNode(node.id, { ...node.data, outputData: undefined, params: currentParams });
@@ -76,22 +72,21 @@ export default function MergeParams({ node, upstreamNodes }: MergeParamsProps) {
     } else {
       updateNode(node.id, { ...node.data, outputData: undefined, params: currentParams });
     }
-  }, [tableAId, tableBId, joinColKey, joinType, node.id, updateNode, dataA, dataB, params, node.data]);
+  }, [tableAId, tableBId, joinColKey, joinType, node.id, updateNode, dataA, dataB, node.data]);
 
   // 當 node.data.params 或 upstreamNodes 變化時同步 state
   useEffect(() => {
-    setTableAId(node.data.params?.tableAId || (upstreamNodes[0]?.id || ""));
-    setTableBId(node.data.params?.tableBId || (upstreamNodes[1]?.id || ""));
-    setJoinColKey(node.data.params?.joinColKey || "");
-    setJoinType(node.data.params?.joinType || "inner");
+    const nodeParams = node.data.params as MergeParams;
+    setTableAId(nodeParams?.tableAId || upstreamNodes[0]?.id || "");
+    setTableBId(nodeParams?.tableBId || upstreamNodes[1]?.id || "");
+    setJoinColKey(nodeParams?.joinColKey || "");
+    setJoinType((nodeParams?.joinType || "inner") as 'inner' | 'left' | 'right' | 'outer');
   }, [node.data.params, upstreamNodes]);
 
-  // 計算 TableA 和 TableB 各自的欄位，以及共同欄位 (用於 Join Key 選擇)
-  const headersA = Array.isArray(dataA) && dataA.length > 0 ? (dataA[0] as any[]).map(String) : [];
-  const headersB = Array.isArray(dataB) && dataB.length > 0 ? (dataB[0] as any[]).map(String) : [];
+  // 計算 TableA 和 TableB 各自的欄位，以及共同欄位
+  const headersA = Array.isArray(dataA) && dataA.length > 0 ? dataA[0].map(String) : [];
+  const headersB = Array.isArray(dataB) && dataB.length > 0 ? dataB[0].map(String) : [];
   const commonHeaders = headersA.filter(h => headersB.includes(h));
-  // 如果希望 Join Key 可以是任一表的任一欄位（例如用於 full outer join 且 key 不同名時），可以用下面的
-  // const allPossibleJoinKeys = Array.from(new Set([...headersA, ...headersB]));
 
   return (
     <div>
@@ -153,12 +148,15 @@ export default function MergeParams({ node, upstreamNodes }: MergeParamsProps) {
         <>
           <div className="mb-4">
             <label className="text-xs font-medium text-gray-700 dark:text-gray-300">合併方式 (Join Type)</label>
-            <Select value={joinType} onValueChange={setJoinType}>
+            <Select 
+              value={joinType} 
+              onValueChange={(value) => setJoinType(value as 'inner' | 'left' | 'right' | 'outer')}
+            >
               <SelectTrigger className="w-full h-10 mt-1 bg-white dark:bg-gray-800 dark:text-white">
                 <SelectValue placeholder="選擇合併方式" />
               </SelectTrigger>
               <SelectContent>
-                {[{value: "inner", label: "Inner Join (交集)"}, {value: "left", label: "Left Join (以左表為主)"}, {value: "right", label: "Right Join (以右表為主)"}, {value: "full", label: "Full Outer Join (聯集)"}].map(jt => (
+                {[{value: "inner", label: "Inner Join (交集)"}, {value: "left", label: "Left Join (以左表為主)"}, {value: "right", label: "Right Join (以右表為主)"}, {value: "outer", label: "Full Outer Join (聯集)"}].map(jt => (
                   <SelectItem key={jt.value} value={jt.value}>{jt.label}</SelectItem>
                 ))}
               </SelectContent>

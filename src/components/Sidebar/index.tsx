@@ -13,10 +13,9 @@ const nodeTypeDefaultParams: Record<string, { defaultName: string, defaultParams
   upload: { defaultName: "檔案上傳", defaultParams: {} },
   filter: { defaultName: "篩選資料", defaultParams: { filter: { field: undefined, operator: undefined, value: undefined } } },
   vlookup: { defaultName: "VLOOKUP", defaultParams: { vlookup: { lookupField: undefined, targetField: undefined, returnField: undefined } } },
-  merge: { defaultName: "合併資料", defaultParams: { merge: { key: undefined } } }, // otherTable 由 executeWorkflow 處理
+  merge: { defaultName: "合併資料", defaultParams: { merge: { joinColKey: undefined, joinType: 'left' } } },
   delete: { defaultName: "刪除資料", defaultParams: { delete: { mode: "row", selectedField: undefined, operator: undefined, filterValue: undefined } } },
   export: { defaultName: "結果下載", defaultParams: { fileName: "mini-n8n-output" } },
-
 };
 
 export default function Sidebar() {

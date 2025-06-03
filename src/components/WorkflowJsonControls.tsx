@@ -25,7 +25,7 @@ function downloadJson(data: WorkflowData, filename: string) {
 }
 
 export default function WorkflowJsonControls() {
-  const { nodes, edges, replaceWorkflow, setNodes, setEdges } = useWorkflowStore(); // 新增 setNodes, setEdges
+  const { nodes, edges, setNodes, setEdges } = useWorkflowStore();
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const handleDownload = useCallback(() => {

@@ -22,7 +22,7 @@ interface MergeNodeData {
 export default function MergeNode({ id, data, selected }: NodeProps<MergeNodeData>) {
   const { nodes, edges, updateNode } = useWorkflowStore();
 
-  const [joinKey, setJoinKey] = useState<string | undefined>(data.params.key);
+  const [joinKey, setJoinKey] = useState<string | undefined>(data.params.joinColKey);
   const [commonHeaders, setCommonHeaders] = useState<string[]>([]);
   const [upstreamError, setUpstreamError] = useState<string | null>(null);
 
@@ -78,8 +78,8 @@ export default function MergeNode({ id, data, selected }: NodeProps<MergeNodeDat
 
   useEffect(() => {
     const currentParams = data.params || {};
-    if (currentParams.key !== joinKey || currentParams.joinType !== 'left') {
-        updateNode(id, { params: { ...currentParams, key: joinKey, joinType: 'left' } });
+    if (currentParams.joinColKey !== joinKey || currentParams.joinType !== 'left') {
+        updateNode(id, { params: { ...currentParams, joinColKey: joinKey, joinType: 'left' } });
     }
   }, [id, joinKey, updateNode, data.params]);
 
