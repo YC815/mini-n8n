@@ -7,6 +7,13 @@ import { useWorkflowStore } from "@/store/workflowStore";
 import { WorkflowNode } from "@/types/workflow";
 import { filterRows } from "@/lib/workflowUtils"; // 確保此函數已在 workflowUtils.ts 中定義
 
+interface FilterParams {
+  selectedField?: string;
+  operator?: string;
+  filterValue?: string;
+  addField?: string | null;
+}
+
 interface FilterParamsProps {
   node: WorkflowNode;
   headers: string[]; // 從 NodeModal 傳過來的所有上游欄位
@@ -16,7 +23,7 @@ export default function FilterParams({ node, headers }: FilterParamsProps) {
   const { updateNode, nodes, edges } = useWorkflowStore();
 
   // 從 node.data.params 初始化 state
-  const { params } = node.data;
+  const { params } = node.data as { params: FilterParams };
   const initialSelectedField = params?.selectedField || "";
   const initialOperator = params?.operator || "=";
   const initialFilterValue = params?.filterValue || "";
