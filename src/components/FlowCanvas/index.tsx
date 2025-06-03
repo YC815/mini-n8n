@@ -30,6 +30,7 @@ import FilterNode from "./custom-nodes/FilterNode";
 import VlookupNode from "./custom-nodes/VlookupNode";
 import MergeNode from "./custom-nodes/MergeNode";
 import ExportNode from "./custom-nodes/ExportNode";
+import DeleteNode from "./custom-nodes/DeleteNode";
 
 // 定義自訂節點類型（移到組件外部）
 const nodeTypes: NodeTypes = {
@@ -38,6 +39,7 @@ const nodeTypes: NodeTypes = {
   vlookup: VlookupNode,
   merge: MergeNode,
   export: ExportNode,
+  delete: DeleteNode,
 };
 
 export default function FlowCanvas() {

@@ -15,6 +15,7 @@ const nodeTypeDefaultParams: Record<string, { defaultName: string, defaultParams
   vlookup: { defaultName: "VLOOKUP", defaultParams: { vlookup: { lookupField: undefined, targetField: undefined, returnField: undefined } } },
   merge: { defaultName: "合併資料", defaultParams: { merge: { key: undefined } } }, // otherTable 由 executeWorkflow 處理
   export: { defaultName: "結果下載", defaultParams: { fileName: "mini-n8n-output" } },
+  delete: { defaultName: "刪除資料", defaultParams: { delete: { mode: "row", selectedField: undefined, operator: undefined, filterValue: undefined } } },
 };
 
 export default function Sidebar() {
@@ -54,6 +55,7 @@ export default function Sidebar() {
           {type === 'vlookup' && '🔗 '}
           {type === 'merge' && '➕ '}
           {type === 'export' && '📥 '}
+          {type === 'delete' && '✂️ '}
           {nodeTypeDefaultParams[type].defaultName}
         </Button>
       ))}

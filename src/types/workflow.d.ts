@@ -30,6 +30,13 @@ export interface ExportParams {
   fileName?: string; // 給 ExportNode 使用
 }
 
+export interface DeleteParams {
+  mode: "row" | "col";
+  selectedField?: string;
+  operator?: "=" | ">" | "<" | "contains";
+  filterValue?: string;
+}
+
 // 節點參數的聯合型別
 export type NodeParams = {
   upload?: UploadParams;
@@ -37,6 +44,7 @@ export type NodeParams = {
   vlookup?: VlookupParams;
   merge?: MergeParams;
   export?: ExportParams;
+  delete?: DeleteParams;
   [key: string]: unknown; // 允許其他任意參數，但建議具體化
 };
 

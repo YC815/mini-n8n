@@ -113,14 +113,32 @@ export function executeWorkflow(workflow: Workflow, excelData: (string | number 
 
 function executeNodeLogic(node: WorkflowNode, inputData: NodeOutput): NodeOutput {
   const params = node.data.params || {}; 
+  const tableData = convertToArray(inputData); // Convert input once for all cases
+
   switch (node.type) {
     case "filter":
-      return convertToNodeOutput(filterRows(convertToArray(inputData), params));
+      console.log(`Executing filter for node ${node.id}`, params.filter);
+      return convertToNodeOutput(filterRows(tableData, params));
     case "vlookup":
-      return convertToNodeOutput(vlookupRows(convertToArray(inputData), params));
+      console.log(`Executing vlookup for node ${node.id}`, params.vlookup);
+      return convertToNodeOutput(vlookupRows(tableData, params));
+    case "delete": // <-- 新增 delete 節點的處理邏輯
+      console.log(`Executing delete for node ${node.id}`, params.delete);
+      if (params.delete) {
+        const { mode, selectedField, operator, filterValue } = params.delete;
+        if (mode === "col" && selectedField) {
+          return convertToNodeOutput(deleteColumn(tableData, selectedField));
+        } else if (mode === "row" && selectedField && operator && filterValue !== undefined) {
+          return convertToNodeOutput(deleteRows(tableData, { selectedField, operator, filterValue }));
+        }
+      }
+      console.warn(`Delete node ${node.id} (${node.data.customName}) is missing parameters or has an invalid mode. Returning original data.`);
+      return inputData; // 如果參數不完整或模式不對，返回原始數據
     case "export":
+      console.log(`Executing export for node ${node.id}`);
       return inputData;
     default:
+      console.log(`Unknown node type ${node.type} for node ${node.id}. Returning original data.`);
       return inputData;
   }
 }
@@ -236,4 +254,55 @@ function mergeArrays(arrays: (NodeOutput | undefined)[]): NodeOutput {
   return validArrays.reduce<NodeOutput>((acc, curr) => {
     return acc.concat(curr);
   }, []);
+}
+
+/**
+ * 根據條件刪除符合的列
+ */
+export function deleteRows(
+  data: (string | number | boolean)[][],
+  params: { selectedField: string; operator: string; filterValue: string | number | boolean }
+): (string | number | boolean)[][] {
+  if (!data || data.length === 0) return data;
+  
+  const header = data[0] as string[];
+  const colIndex = header.indexOf(params.selectedField);
+  if (colIndex < 0) return data;
+
+  const filtered = data.slice(1).filter((row) => {
+    const cell = row[colIndex];
+    switch (params.operator) {
+      case "=":
+        return cell !== params.filterValue;
+      case ">":
+        return cell <= params.filterValue;
+      case "<":
+        return cell >= params.filterValue;
+      case "contains":
+        return !String(cell).toLowerCase().includes(String(params.filterValue).toLowerCase());
+      default:
+        return true;
+    }
+  });
+
+  return [header, ...filtered];
+}
+
+/**
+ * 刪除指定的欄位
+ */
+export function deleteColumn(data: (string | number | boolean)[][], colKey: string): (string | number | boolean)[][] {
+  if (!data || data.length === 0) return data;
+  
+  const header = data[0].map((h) => String(h));
+  const colIndex = header.indexOf(colKey);
+  if (colIndex < 0) return data;
+
+  // 移除 header 及每一列的對應欄
+  const newHeader = data[0].filter((_, idx) => idx !== colIndex);
+  const newRows = data.slice(1).map((row) =>
+    row.filter((_, idx) => idx !== colIndex)
+  );
+
+  return [newHeader, ...newRows];
 } 
