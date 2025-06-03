@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useWorkflowStore } from "@/store/workflowStore";
 import { exportExcel } from "@/lib/excelUtils"; 
-import { NodeOutput, WorkflowNode } from "@/types/workflow";
+import { NodeOutput } from "@/types/workflow";
 import { convertToArray } from "@/lib/workflowUtils"; // 用於將 NodeOutput 轉為 excelUtils 期望的格式
 
 interface ExportNodeData {

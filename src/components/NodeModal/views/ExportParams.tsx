@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useWorkflowStore } from "@/store/workflowStore";
 import { exportExcel } from "@/lib/excelUtils"; // 確保此函數已在 excelUtils.ts 中定義
-import { WorkflowNode } from "@/types/workflow";
+import { WorkflowNode, NodeOutput } from "@/types/workflow";
+import { convertToArray } from "@/lib/workflowUtils";
 
 interface ExportParamsProps {
   node: WorkflowNode;
@@ -15,13 +16,13 @@ export default function ExportParams({ node }: ExportParamsProps) {
   const { nodes, edges, updateNode } = useWorkflowStore();
   const { params } = node.data;
   
-  const initialFileName = params?.fileName || "mini-n8n-output";
+  const initialFileName = (params?.fileName as string) || "mini-n8n-output";
   const [fileName, setFileName] = useState<string>(initialFileName);
 
   // 找到上游節點和其數據
   const upstreamEdge = edges.find((e) => e.target === node.id);
   const upstreamNode = upstreamEdge ? nodes.find((n) => n.id === upstreamEdge.source) : undefined;
-  const upstreamData = upstreamNode?.data.outputData as any[][] | undefined;
+  const upstreamData = upstreamNode?.data.outputData as NodeOutput | undefined;
   const upstreamNodeName = upstreamNode?.data.customName || (upstreamNode ? `節點 ${upstreamNode.id.substring(0,4)}` : "未連接");
 
   // 當 fileName 變更，同步更新 store.params
@@ -31,7 +32,7 @@ export default function ExportParams({ node }: ExportParamsProps) {
 
   // 當 node.data.params 從外部變化時 (例如，載入工作流)，同步本地 state
   useEffect(() => {
-    setFileName(node.data.params?.fileName || "mini-n8n-output");
+    setFileName((node.data.params?.fileName as string) || "mini-n8n-output");
   }, [node.data.params]);
 
   const handleDownload = () => {
@@ -45,7 +46,8 @@ export default function ExportParams({ node }: ExportParamsProps) {
       return;
     }
     try {
-      exportExcel(upstreamData, fileName.endsWith(".xlsx") ? fileName : `${fileName}.xlsx`);
+      const arrayData = convertToArray(upstreamData);
+      exportExcel(arrayData, fileName.endsWith(".xlsx") ? fileName : `${fileName}.xlsx`);
     } catch (error) {
       console.error("Error during Excel export:", error);
       alert("匯出 Excel 失敗，請檢查控制台錯誤訊息。");

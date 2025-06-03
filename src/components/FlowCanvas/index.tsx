@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo } from "react";
+import React, { useCallback, useEffect } from "react";
 import ReactFlow, {
   Background,
   Controls,
@@ -8,6 +8,7 @@ import ReactFlow, {
   useNodesState,
   useEdgesState,
   Node,
+  Edge,
   Connection,
   ReactFlowProvider,
   applyNodeChanges,
@@ -22,7 +23,6 @@ import { WorkflowEdge, WorkflowNode } from "@/types/workflow";
 // import CustomNodeTypes from "./custom-nodes"; // 匯入自訂節點類型
 
 // 暫時定義 CustomNodeTypes，待後續建立自訂節點後再修改
-const CustomNodeTypes = {};
 
 // 自訂節點元件
 import UploadNode from "./custom-nodes/UploadNode";
@@ -43,12 +43,12 @@ const nodeTypes: NodeTypes = {
 };
 
 export default function FlowCanvas() {
-  const { nodes: storeNodes, edges: storeEdges, setNodes, setEdges, addEdge: storeAddEdge, openModal } = useWorkflowStore();
+  const { nodes: storeNodes, edges: storeEdges, setNodes, setEdges, addEdge: storeAddEdge } = useWorkflowStore();
 
   // 將 store 的 nodes/edges 傳給 React Flow 的 hooks
   // rfNodes, setRfNodes 是 React Flow 內部的狀態
-  const [rfNodes, setRfNodes, onReactFlowNodesChange] = useNodesState(storeNodes as Node[]);
-  const [rfEdges, setRfEdges, onReactFlowEdgesChange] = useEdgesState(storeEdges as Edge[]);
+  const [rfNodes, setRfNodes] = useNodesState(storeNodes as Node[]);
+  const [rfEdges, setRfEdges] = useEdgesState(storeEdges as Edge[]);
 
   // 當 store 中的 nodes 更新時，同步到 React Flow 的內部狀態
   useEffect(() => {
