@@ -154,7 +154,7 @@ export function convertToArray(data: NodeOutput): (string | number | boolean)[][
   return [headers, ...data.map(row => headers.map(header => row[header] as string | number | boolean))];
 }
 
-function filterRows(data: (string | number | boolean)[][], params: NodeParams): (string | number | boolean)[][] {
+export function filterRows(data: (string | number | boolean)[][], params: NodeParams): (string | number | boolean)[][] {
   if (!data || data.length < 2) return data;
   const header = data[0] as string[];
   const field = params.filter?.field;
@@ -191,7 +191,7 @@ function filterRows(data: (string | number | boolean)[][], params: NodeParams): 
   return [header, ...filtered];
 }
 
-function vlookupRows(data: (string | number | boolean)[][], params: NodeParams): (string | number | boolean)[][] {
+export function vlookupRows(data: (string | number | boolean)[][], params: NodeParams): (string | number | boolean)[][] {
   if (!data || data.length < 2) return data;
   const header = data[0] as string[];
   
@@ -216,10 +216,10 @@ function vlookupRows(data: (string | number | boolean)[][], params: NodeParams):
   return [newHeader, ...resultRows];
 }
 
-function mergeTables(
+export function mergeTables(
   tables: (string | number | boolean)[][][],
   joinColKey: string,
-  joinType: 'left' | 'inner' | 'right' | 'outer' = 'left' // 新增 joinType 參數，預設為 'left'
+  joinType: 'left' | 'inner' | 'right' | 'outer' = 'left'
 ): (string | number | boolean)[][] {
   if (tables.length < 2) return tables[0] || [];
   const [tableA, tableB] = tables;
