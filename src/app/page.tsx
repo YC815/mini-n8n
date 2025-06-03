@@ -1,6 +1,8 @@
 import FlowCanvas from "@/components/FlowCanvas";
 import Sidebar from "@/components/Sidebar";
 import NodeModal from "@/components/NodeModal";
+import WorkflowJsonControls from "@/components/WorkflowJsonControls";
+import WorkflowControls from "@/components/WorkflowControls";
 
 export default function Home() {
   return (
@@ -9,6 +11,8 @@ export default function Home() {
       <main className="flex-grow relative">
         <FlowCanvas />
         <NodeModal />
+        <WorkflowJsonControls />
+        <WorkflowControls />
       </main>
     </div>
   );

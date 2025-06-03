@@ -1,8 +1,10 @@
 import { WorkflowNode, Workflow, NodeOutput, NodeParams } from "@/types/workflow";
 
 function convertToNodeOutput(data: (string | number | boolean)[][]): NodeOutput {
-  if (!data.length) return [];
+  if (!data || data.length < 1) return [];
   const headers = data[0];
+  if (!headers || headers.length === 0) return [];
+
   return data.slice(1).map(row => {
     const obj: Record<string, string | number | boolean> = {};
     headers.forEach((header, index) => {
@@ -15,59 +17,107 @@ function convertToNodeOutput(data: (string | number | boolean)[][]): NodeOutput 
 /**
  * 根據 workflow（nodes、edges）與 excelData，計算每個節點的 outputData
  */
-export function executeWorkflow(workflow: Workflow, excelData: (string | number | boolean)[][]) {
+export function executeWorkflow(workflow: Workflow, excelData: (string | number | boolean)[][]): WorkflowNode[] {
   const nodeMap = new Map<string, WorkflowNode>();
-  workflow.nodes.forEach((node) => nodeMap.set(node.id, node));
+  const newNodes = workflow.nodes.map(node => ({ ...node, data: { ...node.data } }));
+  newNodes.forEach((node) => nodeMap.set(node.id, node));
 
-  // 先將 Trigger 節點的 outputData 設為 excelData
-  workflow.nodes
+  newNodes
     .filter((n) => n.type === "fileUpload")
     .forEach((n) => {
       n.data.outputData = convertToNodeOutput(excelData);
     });
 
-  // 拓譜排序（或遞迴）從 Trigger 開始，以下使用簡單迴圈，每次找可運算的節點
-  const pending = new Set(workflow.nodes.map((n) => n.id));
-  while (pending.size > 0) {
+  const pending = new Set(newNodes.map((n) => n.id));
+  let iterations = 0;
+  const MAX_ITERATIONS = newNodes.length * newNodes.length;
+
+  while (pending.size > 0 && iterations < MAX_ITERATIONS) {
+    let changedInIteration = false;
     for (const nodeId of Array.from(pending)) {
       const node = nodeMap.get(nodeId)!;
-      // 找到所有已運算的前序節點
       const incomingEdges = workflow.edges.filter((e) => e.target === nodeId);
-      const upstreamReady = incomingEdges.every((e) => {
-        const prevNode = nodeMap.get(e.source)!;
-        return prevNode.data.outputData !== undefined;
-      });
-      if (!incomingEdges.length && node.type !== "fileUpload") {
-        // 若非 Trigger 卻沒有前序，暫時跳過
+
+      if (node.type === "fileUpload") {
+        pending.delete(nodeId);
+        changedInIteration = true;
         continue;
       }
+      
+      const upstreamReady = incomingEdges.every((e) => {
+        const prevNode = nodeMap.get(e.source)!;
+        return !pending.has(e.source) || prevNode.data.outputData !== undefined;
+      });
+
+      if (!incomingEdges.length && node.type !== "fileUpload") {
+        continue; 
+      }
+
       if (upstreamReady) {
-        // 取得所有前序節點輸出
-        const inputDatas = incomingEdges.map((e) => {
+        const inputDatas: (NodeOutput | undefined)[] = incomingEdges.map((e) => {
           const prev = nodeMap.get(e.source)!;
           return prev.data.outputData;
         });
-        // 若只有一個前序，直接取第一；若多個合併陣列再運算
-        const mergedInput = inputDatas.length > 1 ? mergeArrays(inputDatas) : (inputDatas[0] || []);
-        // 執行該節點功能，並設定 outputData
-        node.data.outputData = executeNodeLogic(node, mergedInput);
+
+        if (node.type === "merge") {
+            const validInputs = inputDatas.filter(d => d !== undefined && Array.isArray(d) && d.length > 0) as NodeOutput[];
+            if (validInputs.length >= 2) {
+                const tableA_Array = convertToArray(validInputs[0]);
+                const tableB_Array = convertToArray(validInputs[1]); // Merge 節點固定取前兩個有效輸入
+                const joinKey = node.data.params?.merge?.key; 
+                
+                if (!joinKey) {
+                    console.warn(`Merge node ${node.id} (${node.data.customName}) is missing a join key. Outputting empty.`);
+                    node.data.outputData = [];
+                } else {
+                    node.data.outputData = convertToNodeOutput(
+                        mergeTables([tableA_Array, tableB_Array], joinKey)
+                    );
+                }
+            } else {
+                console.warn(`Merge node ${node.id} (${node.data.customName}) requires at least 2 upstream inputs with data, got ${validInputs.length}. Outputting empty.`);
+                node.data.outputData = [];
+            }
+        } else { // 其他節點類型
+            const mergedInput = inputDatas.length > 1 ? mergeArrays(inputDatas) : (inputDatas[0] || []);
+            node.data.outputData = executeNodeLogic(node, mergedInput);
+        }
         pending.delete(nodeId);
+        changedInIteration = true;
       }
     }
+    iterations++;
+    if (!changedInIteration && pending.size > 0) {
+        console.warn("Workflow execution stuck: No nodes processed in an iteration. Pending nodes:", Array.from(pending).map(id => nodeMap.get(id)?.type));
+        pending.forEach(nodeId => {
+            const node = nodeMap.get(nodeId)!;
+            if (!node.data.outputData) {
+                node.data.outputData = [];
+            }
+        });
+        pending.clear();
+        break;
+    }
   }
+  if (iterations >= MAX_ITERATIONS && pending.size > 0) {
+    console.warn("Workflow execution reached max iterations. There might be a circular dependency or unresolvable nodes. Pending:", Array.from(pending));
+    pending.forEach(nodeId => {
+        const node = nodeMap.get(nodeId)!;
+        if (!node.data.outputData) {
+            node.data.outputData = [];
+        }
+    });
+  }
+  return newNodes;
 }
 
-/**
- * 節點邏輯執行器，依 node.type 決定呼叫何種運算
- */
 function executeNodeLogic(node: WorkflowNode, inputData: NodeOutput): NodeOutput {
+  const params = node.data.params || {}; 
   switch (node.type) {
     case "filter":
-      return convertToNodeOutput(filterRows(convertToArray(inputData), node.data.params));
+      return convertToNodeOutput(filterRows(convertToArray(inputData), params));
     case "vlookup":
-      return convertToNodeOutput(vlookupRows(convertToArray(inputData), node.data.params));
-    case "merge":
-      return convertToNodeOutput(mergeTables([convertToArray(inputData), node.data.params.merge?.otherTable || []], node.data.params.merge?.key || ''));
+      return convertToNodeOutput(vlookupRows(convertToArray(inputData), params));
     case "export":
       return inputData;
     default:
@@ -75,80 +125,115 @@ function executeNodeLogic(node: WorkflowNode, inputData: NodeOutput): NodeOutput
   }
 }
 
-// 將 NodeOutput 轉換為二維陣列
-function convertToArray(data: NodeOutput): (string | number | boolean)[][] {
-  if (!data.length) return [];
-  const headers = Object.keys(data[0]);
-  return [headers, ...data.map(row => headers.map(header => row[header]))];
+export function convertToArray(data: NodeOutput): (string | number | boolean)[][] {
+  if (!data || !data.length) return [];
+  const headers = Object.keys(data[0] || {});
+  if (headers.length === 0) return [[]];
+  return [headers, ...data.map(row => headers.map(header => row[header] as string | number | boolean))];
 }
 
-// 篩選實作：依 params={ columnKey, operator, value }
 function filterRows(data: (string | number | boolean)[][], params: NodeParams): (string | number | boolean)[][] {
-  const header = data[0];
-  const colIndex = header.indexOf(params.filter?.field || '');
+  if (!data || data.length < 2) return data;
+  const header = data[0] as string[];
+  const field = params.filter?.field;
+  if (!field) return data;
+  const colIndex = header.indexOf(field);
   if (colIndex < 0) return data;
+  
+  const operator = params.filter?.operator;
+  const value = params.filter?.value;
+
+  if (operator === undefined || value === undefined) return data; 
+
   const filtered = data.slice(1).filter((row) => {
-    switch (params.filter?.operator) {
+    const cellValue = row[colIndex];
+    
+    // 將 cellValue 和 value 轉換為相同的型別進行比較
+    const typedCellValue = typeof cellValue === 'number' ? cellValue : String(cellValue);
+    const typedValue = !isNaN(Number(value)) ? Number(value) : String(value);
+    
+    switch (operator) {
       case "equals":
-        return row[colIndex] === params.filter.value;
+        return typedCellValue === typedValue;
       case "greater":
-        return row[colIndex] > params.filter.value;
+        return typeof typedCellValue === 'number' && typeof typedValue === 'number' && typedCellValue > typedValue;
       case "less":
-        return row[colIndex] < params.filter.value;
+        return typeof typedCellValue === 'number' && typeof typedValue === 'number' && typedCellValue < typedValue;
       case "contains":
-        return String(row[colIndex]).includes(String(params.filter.value));
+        return String(typedCellValue).toLowerCase().includes(String(typedValue).toLowerCase());
       default:
         return true;
     }
   });
+  
   return [header, ...filtered];
 }
 
-// VLOOKUP 實作：params={ searchColKey, lookupColKey, searchKey }
 function vlookupRows(data: (string | number | boolean)[][], params: NodeParams): (string | number | boolean)[][] {
-  const header = data[0];
-  const searchIndex = header.indexOf(params.vlookup?.lookupField || '');
-  const lookupIndex = header.indexOf(params.vlookup?.targetField || '');
-  if (searchIndex < 0 || lookupIndex < 0) return data;
+  if (!data || data.length < 2) return data;
+  const header = data[0] as string[];
+  
+  const lookupField = params.vlookup?.lookupField;
+  const targetField = params.vlookup?.targetField;
+  const returnKeyValue = params.vlookup?.returnField;
+
+  if (!lookupField || !targetField || returnKeyValue === undefined) return data;
+
+  const searchIndex = header.indexOf(lookupField);
+  const targetIndex = header.indexOf(targetField);
+
+  if (searchIndex < 0 || targetIndex < 0) return data;
+
+  const newHeader = [...header, `VLOOKUP_${targetField}`];
   const resultRows = data.slice(1).map((row) => {
-    if (row[searchIndex] === params.vlookup?.returnField) {
-      return [...row, row[lookupIndex]];
+    if (row[searchIndex] === returnKeyValue) {
+      return [...row, row[targetIndex]];
     }
     return [...row, ''];
   });
-  return [ [...header, `VLOOKUP_${params.vlookup?.targetField}`], ...resultRows ];
+  return [newHeader, ...resultRows];
 }
 
-// 合併實作：params.otherTable 為另一工作表資料，joinColKey 為 Key 欄名稱
 function mergeTables(
   tables: (string | number | boolean)[][][],
   joinColKey: string
 ): (string | number | boolean)[][] {
+  if (tables.length < 2) return tables[0] || [];
   const [tableA, tableB] = tables;
-  const headerA = tableA[0];
-  const headerB = tableB[0];
+  if (!tableA || tableA.length < 1 || !tableB || tableB.length < 1) return tableA || [];
+
+  const headerA = tableA[0] as string[];
+  const headerB = tableB[0] as string[];
+  if (!headerA || !headerB) return tableA || [];
+
   const idxA = headerA.indexOf(joinColKey);
   const idxB = headerB.indexOf(joinColKey);
+
   if (idxA < 0 || idxB < 0) return tableA;
-  const mergedHeader = [...headerA, ...headerB.filter((_, i) => i !== idxB)];
+
+  const mergedHeader = [...headerA, ...headerB.filter((col, i) => i !== idxB)];
   const mapB = new Map<string | number | boolean, (string | number | boolean)[]>();
+  
   tableB.slice(1).forEach((row) => {
     mapB.set(row[idxB], row);
   });
+
   const mergedRows = tableA.slice(1).map((row) => {
     const key = row[idxA];
-    const rowB = mapB.get(key) || new Array(headerB.length).fill('');
-    return [...row, ...rowB.filter((_, i) => i !== idxB)];
+    const rowBData = mapB.get(key);
+    const bValues = headerB.map((_, i) => (rowBData && i !== idxB ? rowBData[i] : ''));
+    return [...row, ...bValues.filter((_,i) => headerB[i] !== joinColKey )];
   });
   return [mergedHeader, ...mergedRows];
 }
 
-// 若多個輸入，簡單將陣列串成一個，後續節點再自行決定邏輯
 function mergeArrays(arrays: (NodeOutput | undefined)[]): NodeOutput {
-  if (!arrays.length) return [];
-  if (arrays.length === 1) return arrays[0] || [];
-  return arrays.reduce<NodeOutput>((prev, curr) => {
-    if (!curr) return prev;
-    return [...prev, ...curr];
+  if (!arrays || !arrays.length) return [];
+  const validArrays = arrays.filter(arr => arr !== undefined && arr.length > 0) as NodeOutput[];
+  if (!validArrays.length) return [];
+  if (validArrays.length === 1) return validArrays[0];
+  
+  return validArrays.reduce<NodeOutput>((acc, curr) => {
+    return acc.concat(curr);
   }, []);
 } 

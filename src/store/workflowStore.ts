@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { WorkflowNode, WorkflowEdge, NodeID } from "@/types/workflow";
+import { executeWorkflow } from "@/lib/workflowUtils";
 
 // 定義 Excel 資料的型別
 type ExcelData = (string | number | boolean)[][] | Record<string, string | number | boolean>[];
@@ -11,6 +12,7 @@ interface WorkflowState {
   excelData: ExcelData;                  // 原始上傳的 Excel 資料（可為二維陣列或物件陣列）
   currentEditingNodeId: NodeID | null;
   modalVisible: boolean;
+  isExecuting: boolean;                  // 新增：是否正在執行工作流
   setNodes: (nodes: WorkflowNode[]) => void;
   setEdges: (edges: WorkflowEdge[]) => void;
   setExcelData: (data: ExcelData) => void;
@@ -21,14 +23,17 @@ interface WorkflowState {
   removeEdge: (id: string) => void;
   openModal: (nodeId: NodeID) => void;
   closeModal: () => void;
+  replaceWorkflow: (nodes: WorkflowNode[], edges: WorkflowEdge[]) => void;
+  executeWorkflow: () => void;           // 新增：執行工作流的方法
 }
 
-export const useWorkflowStore = create<WorkflowState>((set) => ({
+export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   nodes: [],
   edges: [],
   excelData: [],
   currentEditingNodeId: null,
   modalVisible: false,
+  isExecuting: false,                    // 新增：預設為 false
   setNodes: (nodes) => set({ nodes }),
   setEdges: (edges) => set({ edges }),
   setExcelData: (data) => set({ excelData: data }),
@@ -49,4 +54,22 @@ export const useWorkflowStore = create<WorkflowState>((set) => ({
     set((state) => ({ edges: state.edges.filter((edge) => edge.id !== id) })),
   openModal: (nodeId) => set({ currentEditingNodeId: nodeId, modalVisible: true }),
   closeModal: () => set({ currentEditingNodeId: null, modalVisible: false }),
+  replaceWorkflow: (nodes, edges) => set({ nodes, edges }),
+  executeWorkflow: () => {
+    const state = get();
+    if (state.isExecuting) return; // 如果正在執行，則不重複執行
+    
+    set({ isExecuting: true });
+    try {
+      const updatedNodes = executeWorkflow(
+        { nodes: state.nodes, edges: state.edges },
+        state.excelData
+      );
+      set({ nodes: updatedNodes });
+    } catch (error) {
+      console.error('執行工作流時發生錯誤:', error);
+    } finally {
+      set({ isExecuting: false });
+    }
+  },
 })); 
