@@ -14,8 +14,9 @@ const nodeTypeDefaultParams: Record<string, { defaultName: string, defaultParams
   filter: { defaultName: "篩選資料", defaultParams: { filter: { field: undefined, operator: undefined, value: undefined } } },
   vlookup: { defaultName: "VLOOKUP", defaultParams: { vlookup: { lookupField: undefined, targetField: undefined, returnField: undefined } } },
   merge: { defaultName: "合併資料", defaultParams: { merge: { key: undefined } } }, // otherTable 由 executeWorkflow 處理
-  export: { defaultName: "結果下載", defaultParams: { fileName: "mini-n8n-output" } },
   delete: { defaultName: "刪除資料", defaultParams: { delete: { mode: "row", selectedField: undefined, operator: undefined, filterValue: undefined } } },
+  export: { defaultName: "結果下載", defaultParams: { fileName: "mini-n8n-output" } },
+
 };
 
 export default function Sidebar() {
@@ -47,7 +48,10 @@ export default function Sidebar() {
           key={type} 
           onClick={() => handleAddNode(type)} 
           variant="outline" 
-          className="w-full justify-start text-left hover:bg-gray-100"
+          className={`w-full justify-start text-left hover:bg-gray-100 ${
+            type === 'upload' ? 'mb-6' : 
+            type === 'export' ? 'mt-5' : ''
+          }`}
         >
           {/* 可以根據 type 加上 Icon */}
           {type === 'upload' && '📤 '}
