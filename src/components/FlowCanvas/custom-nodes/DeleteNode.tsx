@@ -56,7 +56,7 @@ export default function DeleteNode({ id, data }: NodeProps) {
     setSelectedField("");
     setOperator("=");
     setFilterValue("");
-  }, []);
+  }, [id]);
 
   // 處理欄位變更
   const handleFieldChange = useCallback((value: string) => {

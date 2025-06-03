@@ -95,7 +95,7 @@ export default function VlookupParams({ node, headers }: VlookupParamsProps) {
     } else {
       updateNode(node.id, { ...node.data, outputData: undefined, params: currentParams });
     }
-  }, [searchColKey, lookupColKey, searchKey, outputColName, node.id, updateNode, nodes, edges, node.data, params]);
+  }, [searchColKey, lookupColKey, searchKey, outputColName, node.id, updateNode, nodes, edges, node.data, params, headers]);
 
   // 當 node.data.params 從外部變化時 (例如，載入工作流)，同步本地 state
   useEffect(() => {
